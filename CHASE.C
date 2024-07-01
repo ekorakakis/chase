@@ -1,60 +1,53 @@
-/* The Chase Project. Version 2.0 */
+/* The Chase Project. Version 3.0 */
+/******************************************************************************
+ *  4. Level change sound
+ *  7. General refactoring
+ * 11. Stats are not properly cleared and reprinted. There are trailing zeros left behind.
+ * 12. Visual - the "graphics" are not right.
+ * 13. Randomisation broken (sometimes everything sits ontop of each other). By the 3rd level it stops working.
+ * 14. Sounds and bombs visual.
+ * 15. Reduce global variables.
+ * 16. Remove cursor.
+ * 17. Add README.
+*****************************************************************************/
 
-/*********************************************
- * Known Bugs
- *********************************************
- 1. After changing bounds and using offsets there exists an area in the bottom of
-		the screen that the robots cannot be in.
- 2. Level change. (Probably due to 1).
- 3. M cannot lose (again because of 1).
- 4. Level change sound.
- 5. Quit (case insensitivity).
- 6. Bomb graphic effects.
- 7. General refactoring
- 8. Free move for robots (with +).
- 9. Max number of robots
-10. Teleport is not working always right (randomization)
-*/
-
-/*********************************************
- * Required Libraries
- *********************************************/
-
+/******************************************************************************
+ * Required libraries
+ *****************************************************************************/
 #include <stdio.h>
+#include <windows.h>
 #include <conio.h>
 #include <stdlib.h>
 #include <dos.h>
 #include <time.h>
 
-/*********************************************
- * Game Definitions
- *********************************************/
 
-/* game size */
+/******************************************************************************
+ * Required definitions
+ *****************************************************************************/
 #define ROWS 20
 #define COLUMNS 60
 #define OFFSETX 2
 #define OFFSETY 4
-
 #define MAXLEVELS 20
-
-/* cell definitions */
-#define EMPTYCELL 	100
-#define ROBOTCELL 	200
-#define MANCELL  	300
-#define DEBRISCELL 	900
-
+#define EMPTYCELL   100
+#define ROBOTCELL   200
+#define MANCELL     300
+#define DEBRISCELL  900
 #define ADVANCELEVEL 1000
+#define VERSION 3.0
 
-#define VERSION 2.0
 
-/*********************************************
+/******************************************************************************
  * Function Signatures
- *********************************************/
+ *****************************************************************************/
+void gotoxy(int x, int y);
+void clear_screen( void );
+void initialiseScreen(void);
+void printStats(void);
 
-void initializeEnvironment(void);
 void initializeMatrices(int offsetX, int offsetY, int matrix[COLUMNS][ROWS], int help[COLUMNS][ROWS]);
-void randomizeCoordinates(int *x, int *y);
+void randomiseCoordinates(int *x, int *y);
 
 int calc(void);
 int check(void);
@@ -70,765 +63,804 @@ void reduceRobots(void);
 int keyboard(void);
 void gameOver(void);
 
-/*********************************************
- * Global Variables
- *********************************************/
 
-// int level, robots, score, bombs
+/******************************************************************************
+ * Global Variables
+ *****************************************************************************/
 char keyb;
 time_t t;
-
 int c, k, i, j, level, robots, score, a, b, bombs, level2;
 int matrix[COLUMNS][ROWS], help[COLUMNS][ROWS];
 
-/*********************************************
- * Function Main
- *********************************************/
 
+/******************************************************************************
+ * Function Main
+ *****************************************************************************/
 int main(void)
 {
-	// environment initialization and welcome screen
-	initializeEnvironment();
+    // screen initialisation
+    initialiseScreen();
+    
+    // initialize matrices
+    initializeMatrices(OFFSETX, OFFSETY, matrix, help);
 
-	// initialize matrices
-	initializeMatrices(OFFSETX, OFFSETY, matrix, help);
-
-	for (level=1; level<MAXLEVELS;)
-	{
-		gotoxy(76,8);
-		printf("%d", level, " ");
-
-		if (keyboard()==1000)
-		{
-			level++;
-			matrix [a][b] = 0;
-			gotoxy(a,b);
-			printf(" ");
-		}
-		else
-			break;
-	 }
-	 return;
+    for (level=1; level<MAXLEVELS;)
+    {
+        // game control (keyboard driven)
+        if (keyboard()==ADVANCELEVEL)
+        {
+            level++;
+            matrix [a][b] = 0;
+            gotoxy(a,b);
+            printf(" ");
+        }
+        else
+            break;
+     }
+     return;
 }
 
 
-/*********************************************
+/******************************************************************************
  * Game Control
- *********************************************/
-
+ *****************************************************************************/
 int keyboard()
 {
-	robots = level * 5;
-	bombs += 5;
-	gotoxy(76,10);
-	printf("%d", robots, " ");
-	gotoxy(76,12);
-	printf("%d", bombs, " ");
+    robots = level * 5;
+    bombs += 5;
 
-	keyb = 'w';
+    // print the stats right before the user presses a button
+    printStats();
 
-	// the seed for our randomization
-	srand((unsigned) time(&t));
+    keyb = 'w';
 
-	// place the robots
-	for (i=0; (i < (level) * 5); i++)
-	{
-		randomizeCoordinates(&a, &b);
-		placeRobot(matrix, help, a, b);
-	}
+    // place the robots
+    for (i=0; (i < (level) * 5); i++)
+    {
+        randomiseCoordinates(&a, &b);
+        placeRobot(matrix, help, a, b);
+    }
 
-	// place the man
-	randomizeCoordinates(&a, &b);
-	placeMan(matrix, help, a, b);
+    // place the man
+    randomiseCoordinates(&a, &b);
+    placeMan(matrix, help, a, b);
 
-	// read user's input
-	while ((keyb != 'q') || (keyb != 'Q'))
-	{
-		keyb = getch();
+    // read user's input
+    while ((keyb != 'q') || (keyb != 'Q'))
+    {
+        keyb = _getch();
 
-		switch(keyb)
-		{
-			case '1': if ( b < 23 && a > 2 )
-			{
-				placeEmpty(matrix, help, a, b);
-				b++; a--;
-				placeMan(matrix, help, a, b);
+        switch(keyb)
+        {
+            case '1': if ( b < 23 && a > 2 )
+            {
+                placeEmpty(matrix, help, a, b);
+                b++; a--;
+                placeMan(matrix, help, a, b);
 
-				if (check()==1000) return 1000;
-				break;
-			}
-			else break;
+                if (check()==ADVANCELEVEL) return ADVANCELEVEL;
+                break;
+            }
+            else break;
 
-			case '2': if (b < 23)
-			{
-				placeEmpty(matrix, help, a, b);
-				b++;
-				placeMan(matrix, help, a, b);
+            case '2': if (b < 23)
+            {
+                placeEmpty(matrix, help, a, b);
+                b++;
+                placeMan(matrix, help, a, b);
 
-				if (check()==1000) return 1000;
-				break;
-			}
-			else break;
+                if (check()==ADVANCELEVEL) return ADVANCELEVEL;
+                break;
+            }
+            else break;
 
-			case '3': if ( b < 23 && a < 61 )
-			{
-				placeEmpty(matrix, help, a, b);
-				b++; a++;
-				placeMan(matrix, help, a, b);
+            case '3': if ( b < 23 && a < 61 )
+            {
+                placeEmpty(matrix, help, a, b);
+                b++; a++;
+                placeMan(matrix, help, a, b);
 
-				if (check()==1000) return 1000;
-				break;
-			}
-			else break;
+                if (check()==ADVANCELEVEL) return ADVANCELEVEL;
+                break;
+            }
+            else break;
 
-			case '4': if (a > 2)
-			{
-				placeEmpty(matrix, help, a, b);
-				a--;
-				placeMan(matrix, help, a, b);
+            case '4': if (a > 2)
+            {
+                placeEmpty(matrix, help, a, b);
+                a--;
+                placeMan(matrix, help, a, b);
 
-				if (check()==1000) return 1000;
-				break;
-			}
-			else break;
+                if (check()==ADVANCELEVEL) return ADVANCELEVEL;
+                break;
+            }
+            else break;
 
-			case '5':
-			{
-				placeMan(matrix, help, a, b);
+            case '5':
+            {
+                placeMan(matrix, help, a, b);
 
-				if (check()==1000) return 1000;
-				break;
-			}
+                if (check()==ADVANCELEVEL) return ADVANCELEVEL;
+                break;
+            }
 
-			case '6': if (a<61)
-			{
-				placeEmpty(matrix, help, a, b);
-				a++;
-				placeMan(matrix, help, a, b);
+            case '6': if (a<61)
+            {
+                placeEmpty(matrix, help, a, b);
+                a++;
+                placeMan(matrix, help, a, b);
 
-				if (check()==1000) return 1000;
-				break;
-			}
-			else break;
+                if (check()==ADVANCELEVEL) return ADVANCELEVEL;
+                break;
+            }
+            else break;
 
-			case '7': if (b > 4 && a > 2)
-			{
-				placeEmpty(matrix, help, a, b);
-				a--; b--;
-				placeMan(matrix, help, a, b);
+            case '7': if (b > 4 && a > 2)
+            {
+                placeEmpty(matrix, help, a, b);
+                a--; b--;
+                placeMan(matrix, help, a, b);
 
-				if (check()==1000) return 1000;
-				break;
-			}
-			else break;
+                if (check()==ADVANCELEVEL) return ADVANCELEVEL;
+                break;
+            }
+            else break;
 
-			case '8': if (b > 4)
-			{
-				placeEmpty(matrix, help, a, b);
-				b--;
-				placeMan(matrix, help, a, b);
+            case '8': if (b > 4)
+            {
+                placeEmpty(matrix, help, a, b);
+                b--;
+                placeMan(matrix, help, a, b);
 
-				if (check()==1000) return 1000;
-				break;
-			}
-			else break;
+                if (check()==ADVANCELEVEL) return ADVANCELEVEL;
+                break;
+            }
+            else break;
 
-			case '9': if (b > 4 && a < 61)
-			{
-				placeEmpty(matrix, help, a, b);
-				a++; b--;
-				placeMan(matrix, help, a, b);
+            case '9': if (b > 4 && a < 61)
+            {
+                placeEmpty(matrix, help, a, b);
+                a++; b--;
+                placeMan(matrix, help, a, b);
 
-				if (check()==1000) return 1000;
-				break;
-			}
-			else break;
+                if (check()==ADVANCELEVEL) return ADVANCELEVEL;
+                break;
+            }
+            else break;
 
-			case '+':
-			{
-				while (check() != 1000)
-				{
-					placeMan(matrix, help, a, b);
-					delay(100);
-				}
-				return 1000;
-			}
+            case '+':
+            {
+                while (check() != ADVANCELEVEL)
+                {
+                    placeMan(matrix, help, a, b);
+                    // delay(100);
+                }
+                return ADVANCELEVEL;
+            }
 
-			case 'q': return 5000;
-			case 'Q': return 5000;
+            case 'q': return 5000;
+            case 'Q': return 5000;
 
-			case 't':
-			{
-				placeEmpty(matrix, help, a, b);
-				randomizeCoordinates(&a, &b);
-				placeMan(matrix, help, a, b);
+            case 't':
+            {
+                placeEmpty(matrix, help, a, b);
+                randomiseCoordinates(&a, &b);
+                placeMan(matrix, help, a, b);
 
-				if (check()==1000) return 1000;
-			}
-			break;
+                if (check()==ADVANCELEVEL) return ADVANCELEVEL;
+            }
+            break;
 
-			case 'T':
-			{
-				placeEmpty(matrix, help, a, b);
-				randomizeCoordinates(&a, &b);
-				placeMan(matrix, help, a, b);
+            case 'T':
+            {
+                placeEmpty(matrix, help, a, b);
+                randomiseCoordinates(&a, &b);
+                placeMan(matrix, help, a, b);
 
-				if (check()==1000) return 1000;
-			}
-			break;
+                if (check()==ADVANCELEVEL) return ADVANCELEVEL;
+            }
+            break;
 
-			case 'b':
-			{
-				bombs--;
+            case 'b':
+            {
+                bombs--;
 
-				gotoxy(76,12);
-				printf("%d",bombs);
+                gotoxy(76,12);
+                printf("%d",bombs);
 
-				if (matrix[a-1][b-1] == ROBOTCELL)
-				{
-					reduceRobots();
-					placeEmpty(matrix, help, a-1, b-1);
-					if (robots==0) return 1000;
-				}
+                if (matrix[a-1][b-1] == ROBOTCELL)
+                {
+                    reduceRobots();
+                    placeEmpty(matrix, help, a-1, b-1);
+                    if (robots==0) return ADVANCELEVEL;
+                }
 
-				if (matrix[a-1][b] == ROBOTCELL)
-				{
-					reduceRobots();
-					placeEmpty(matrix, help, a-1, b);
-					if (robots==0) return 1000;
-				}
+                if (matrix[a-1][b] == ROBOTCELL)
+                {
+                    reduceRobots();
+                    placeEmpty(matrix, help, a-1, b);
+                    if (robots==0) return ADVANCELEVEL;
+                }
 
-				if (matrix[a-1][b+1] == ROBOTCELL)
-				{
-					reduceRobots();
-					placeEmpty(matrix, help, a-1, b+1);
-					if (robots==0) return 1000;
-				}
+                if (matrix[a-1][b+1] == ROBOTCELL)
+                {
+                    reduceRobots();
+                    placeEmpty(matrix, help, a-1, b+1);
+                    if (robots==0) return ADVANCELEVEL;
+                }
 
-				if (matrix[a][b-1] == ROBOTCELL)
-				{
-					reduceRobots();
-					placeEmpty(matrix, help, a, b-1);
-					if (robots==0) return 1000;
-				}
+                if (matrix[a][b-1] == ROBOTCELL)
+                {
+                    reduceRobots();
+                    placeEmpty(matrix, help, a, b-1);
+                    if (robots==0) return ADVANCELEVEL;
+                }
 
-				if (matrix[a][b+1] == ROBOTCELL)
-				{
-					reduceRobots();
-					placeEmpty(matrix, help, a, b+1);
-					if (robots==0) return 1000;
-				}
+                if (matrix[a][b+1] == ROBOTCELL)
+                {
+                    reduceRobots();
+                    placeEmpty(matrix, help, a, b+1);
+                    if (robots==0) return ADVANCELEVEL;
+                }
 
-				if (matrix[a+1][b-1] == ROBOTCELL)
-				{
-					reduceRobots();
-					placeEmpty(matrix, help, a+1, b-1);
-					if (robots==0) return 1000;
-				}
+                if (matrix[a+1][b-1] == ROBOTCELL)
+                {
+                    reduceRobots();
+                    placeEmpty(matrix, help, a+1, b-1);
+                    if (robots==0) return ADVANCELEVEL;
+                }
 
-				if (matrix[a+1][b] == ROBOTCELL)
-				{
-					reduceRobots();
-					placeEmpty(matrix, help, a+1, b);
-					if (robots==0) return 1000;
-				}
+                if (matrix[a+1][b] == ROBOTCELL)
+                {
+                    reduceRobots();
+                    placeEmpty(matrix, help, a+1, b);
+                    if (robots==0) return ADVANCELEVEL;
+                }
 
-				if (matrix[a+1][b+1] == ROBOTCELL)
-				{
-					reduceRobots();
-					placeEmpty(matrix, help, a+1, b+1);
-					if (robots==0) return 1000;
-				}
+                if (matrix[a+1][b+1] == ROBOTCELL)
+                {
+                    reduceRobots();
+                    placeEmpty(matrix, help, a+1, b+1);
+                    if (robots==0) return ADVANCELEVEL;
+                }
 
-				placeBomb(&a, &b);
-				break;
-			}
+                placeBomb(&a, &b);
+                break;
+            }
 
-		} // end switch
-	} // end while
+        } // end switch
 
-	return 0;
+        // print the stats right at the end of the loop to update with the latest
+        printStats();
+    } // end while
+
+    return 0;
 
 } // end function
 
 int calc()
 {
-	// if a robot hits on a robot cell
-	if (matrix[i][j] == ROBOTCELL)
-	{
-		// place debris
-		placeDebris(matrix, help, i, j);
+    // if a robot hits on a robot cell
+    if (matrix[i][j] == ROBOTCELL)
+    {
+        // place debris
+        placeDebris(matrix, help, i, j);
 
-		// reduce robots by 2
-		reduceRobots();
-		reduceRobots();
+        // reduce robots by 2
+        reduceRobots();
+        reduceRobots();
 
-		// if no robots left - return change level
-		if (robots==0) return ADVANCELEVEL;
-	}
-	// if a robot hits you - you fucked
-	else if (matrix[i][j] == MANCELL)
-	{
-		// place debris
-		placeRobot(matrix, help, i, j);
-		gameOver();
-	}
-	else if (matrix[i][j] == DEBRISCELL)
-	{
-		// place debris
-		placeDebris(matrix, help, i, j);
+        // if no robots left - return change level
+        if (robots==0) return ADVANCELEVEL;
+    }
+    // if a robot hits you - you fucked
+    else if (matrix[i][j] == MANCELL)
+    {
+        // place debris
+        placeRobot(matrix, help, i, j);
+        gameOver();
+    }
+    else if (matrix[i][j] == DEBRISCELL)
+    {
+        // place debris
+        placeDebris(matrix, help, i, j);
 
-		// reduce robots by 1
-		reduceRobots();
+        // reduce robots by 1
+        reduceRobots();
 
-		if (robots==0) return 1000;
+        if (robots==0) return ADVANCELEVEL;
 
-	}
-	else
-	{
-		gotoxy(i,j);
-		printf("R");
-		matrix [i][j] = ROBOTCELL;
-	}
-	return 0;
+    }
+    else
+    {
+        gotoxy(i,j);
+        printf("R");
+        matrix [i][j] = ROBOTCELL;
+    }
+    return 0;
 }
-
 
 int check()
 {
-	//for (i=50; i<64; i++)
-	//	matrix[i][20] = EMPTYCELL;
+        for (i=2; i<62; i++)
+        {
+            for (j=4; j<24; j++)
+            {
+                if (matrix[i][j] == ROBOTCELL && help[i][j] == ROBOTCELL)
+                {
+                    if (abs(i-a) > abs(j-b))
+                    {
+                        if (i-a > 0)
+                        {
+                            placeEmpty(matrix, matrix, i, j);
+                            i--;
+                            gotoxy(i,j);
 
-		for (i=2; i<62; i++)
-		{
-			for (j=4; j<24; j++)
-			{
-				if (matrix[i][j] == ROBOTCELL && help[i][j] == ROBOTCELL)
-				{
-					if (abs(i-a) > abs(j-b))
-					{
-						if (i-a > 0)
-						{
-							placeEmpty(matrix, matrix, i, j);
-							i--;
-							gotoxy(i,j);
+                            if (calc()==ADVANCELEVEL) return ADVANCELEVEL;
+                            i++;
+                        }
+                        else
+                        {
+                            placeEmpty(matrix, matrix, i, j);
+                            i++;
+                            gotoxy(i,j);
 
-							if (calc()==1000) return 1000;
-							i++;
-						}
-						else
-						{
-							placeEmpty(matrix, matrix, i, j);
-							i++;
-							gotoxy(i,j);
+                            if (calc()==ADVANCELEVEL) return ADVANCELEVEL;
+                            i--;
+                        }
+                    }
+                    else if (abs(i-a) < abs(j-b))
+                    {
+                        if (j-b>0)
+                        {
+                            placeEmpty(matrix, matrix, i, j);
+                            j--;
+                            gotoxy(i,j);
 
-							if (calc()==1000) return 1000;
-							i--;
-						}
-					}
-					else if (abs(i-a) < abs(j-b))
-					{
-						if (j-b>0)
-						{
-							placeEmpty(matrix, matrix, i, j);
-							j--;
-							gotoxy(i,j);
+                            if (calc()==ADVANCELEVEL) return ADVANCELEVEL;
+                            j++;
+                        }
+                        else
+                        {
+                            placeEmpty(matrix, matrix, i, j);
+                            j++;
+                            gotoxy(i,j);
 
-							if (calc()==1000) return 1000;
-							j++;
-						}
-						else
-						{
-							placeEmpty(matrix, matrix, i, j);
-							j++;
-							gotoxy(i,j);
+                            if (calc()==ADVANCELEVEL) return ADVANCELEVEL;
+                            j--;
+                        }
+                    }
+                else if (abs(i-a) == abs(j-b))
+                {
+                    if (j-b>0 && i-a>0)
+                    {
+                        placeEmpty(matrix, matrix, i, j);
+                        i--; j--;
+                        gotoxy(i,j);
 
-							if (calc()==1000) return 1000;
-							j--;
-						}
-					}
-				else if (abs(i-a) == abs(j-b))
-				{
-					if (j-b>0 && i-a>0)
-					{
-						placeEmpty(matrix, matrix, i, j);
-						i--; j--;
-						gotoxy(i,j);
+                        if (calc()==ADVANCELEVEL) return ADVANCELEVEL;
+                        i++; j++;
+                    }
+                    else if (j-b<0 && i-a>0)
+                    {
+                        placeEmpty(matrix, matrix, i, j);
+                        i--; j++;
+                        gotoxy(i,j);
 
-						if (calc()==1000) return 1000;
-						i++; j++;
-					}
-					else if (j-b<0 && i-a>0)
-					{
-						placeEmpty(matrix, matrix, i, j);
-						i--; j++;
-						gotoxy(i,j);
+                        if (calc()==ADVANCELEVEL) return ADVANCELEVEL;
+                        i++; j--;
+                    }
+                    else if (j-b<0 && i-a<0)
+                    {
+                        placeEmpty(matrix, matrix, i, j);
+                        i++; j++;
+                        gotoxy(i,j);
 
-						if (calc()==1000) return 1000;
-						i++; j--;
-					}
-					else if (j-b<0 && i-a<0)
-					{
-						placeEmpty(matrix, matrix, i, j);
-						i++; j++;
-						gotoxy(i,j);
+                        if (calc()==ADVANCELEVEL) return ADVANCELEVEL;
+                        i--; j--;
+                    }
+                    else if (j-b>0 && i-a<0)
+                    {
+                            placeEmpty(matrix, matrix, i, j);
+                            i++; j--;
+                            gotoxy(i,j);
 
-						if (calc()==1000) return 1000;
-						i--; j--;
-					}
-					else if (j-b>0 && i-a<0)
-					{
-							placeEmpty(matrix, matrix, i, j);
-							i++; j--;
-							gotoxy(i,j);
+                            if (calc()==ADVANCELEVEL) return ADVANCELEVEL;
+                            i--; j++;
+                    }
+                } // main if
+            } // end third for
+        } // end second for
+    } // end first for
 
-							if (calc()==1000) return 1000;
-							i--; j++;
-					}
-				} // main if
-			} // end third for
-		} // end second for
-	} // end first for
+    level2 = level;
 
-	level2 = level;
+    // copy matrices?
+    for (i=2; i<62; i++)
+        for (j=4; j<24; j++)
+            help [i] [j] = matrix [i] [j];
 
-	// copy matrices?
-	for (i=2; i<62; i++)
-		for (j=4; j<24; j++)
-			help [i] [j] = matrix [i] [j];
-
-	return 0;
+    return 0;
 } // end function
 
 
-/*********************************************
+/******************************************************************************
  * Helper Functions
- *********************************************/
+ *****************************************************************************/
 
-void randomizeCoordinates(int *x, int *y)
+void gotoxy(int x, int y)
 {
-	*x = (rand() % 62);
-	*y = (rand() % 23);
-
-	while (*x < 2 || *x > 61 || matrix [*x][*y] != EMPTYCELL)
-		*x = (rand() % 62);
-
-	while (*y < 4 || *y > 23 || matrix [*x][*y] != EMPTYCELL)
-		*y = (rand() % 23);
+    COORD c = { x, y };  
+    SetConsoleCursorPosition(  GetStdHandle(STD_OUTPUT_HANDLE) , c);
 }
 
-void initializeEnvironment()
+void clear_screen( void )
 {
-	_setcursortype(_NOCURSOR);
-	clrscr();
+  DWORD n;                         /* Number of characters written */
+  DWORD size;                      /* number of visible characters */
+  COORD coord = {0};               /* Top left screen position */
+  CONSOLE_SCREEN_BUFFER_INFO csbi;
 
-	for (i=2; i<80; i++)
-	{
-		gotoxy(i,1);
-		printf("Í");
-		gotoxy(i,3);
-		printf("Í");
-		gotoxy(i,24);
-		printf("Í");
-		gotoxy(i,25);
-		printf("Í");
-	}
+  /* Get a handle to the console */
+  HANDLE h = GetStdHandle ( STD_OUTPUT_HANDLE );
 
-	for (i=2; i<25; i++)
-	{
-		gotoxy(1,i);
-		printf("º");
-		gotoxy(62,i);
-		printf("º");
-		gotoxy(80,i);
-		printf("º");
-	}
+  GetConsoleScreenBufferInfo ( h, &csbi );
 
-	gotoxy(1,1);
-	printf("É");
-	gotoxy(80,1);
-	printf("»");
-	gotoxy(1,24);
-	printf("È");
-	gotoxy(1,25);
-	printf("È");
-	gotoxy(78,25);
-	printf("¼");
-	gotoxy(78,24);
-	printf("Ë");
+  /* Find the number of characters to overwrite */
+  size = csbi.dwSize.X * csbi.dwSize.Y;
 
-        gotoxy(62,1);
-	printf("Ë");
-	gotoxy(62,3);
-	printf("Î");
-	gotoxy(62,24);
-	printf("Î");
+  /* Overwrite the screen buffer with whitespace */
+  FillConsoleOutputCharacter ( h, TEXT ( ' ' ), size, coord, &n );
+  GetConsoleScreenBufferInfo ( h, &csbi );
+  FillConsoleOutputAttribute ( h, csbi.wAttributes, size, coord, &n );
 
-        gotoxy(1,3);
-	printf("Ì");
-	gotoxy(1,24);
-	printf("Ì");
+  /* Reset the cursor to the top left position */
+  SetConsoleCursorPosition ( h, coord );
+}
 
-	gotoxy(80,3);
-	printf("¹");
-	gotoxy(80,24);
-	printf("¼");
+/* 
+ * Supply 2 references to 2 integers and populate them using a random number
+ * seed from the current time. The random coordinates are within the game
+ * limits (ROWS, COLUMNS).
+ */
+void randomiseCoordinates(int *x, int *y)
+{
+    int maxx, maxy;
+    
+    // the seed for our randomisation
+    srand((unsigned) time(&t));
 
-	gotoxy(62,25);
-	printf("Ê");
-	gotoxy(3,2);
-	printf("The Chase v%2.1f                           Manolis Korakakis", VERSION);
-	gotoxy(64,2);
-	printf(" Information :");
-	gotoxy(65,5);
-	printf("Score  :   0");
-	gotoxy(65,8);
-	printf("Level  :    ");
-	gotoxy(65,10);
-	printf("Robots :   5");
-	gotoxy(65,12);
-	printf("Bombs  :   5");
-	gotoxy(64,16);
-	printf(" ÛÛ    ÛÛÛ   Û");
-	gotoxy(64,17);
-	printf("ÛÛÛÛÛ ÛÛÛÛÛ Û");
-	gotoxy(64,18);
-	printf("ÛÛÛ ÛÛÛ ÛÛÛÛÛÛ");
-	gotoxy(64,19);
-	printf("ÛÛÛ     ÛÛÛ  ÛÛ");
-	gotoxy(64,20);
-	printf("ÛÛÛ     ÛÛÛ  ÛÛÛ");
-	gotoxy(64,22);
-	printf("   creations (R)");
-	gotoxy(79,25);
-	printf(" ");
+    // set the max x and y
+    maxx = COLUMNS + OFFSETX - 1;
+    maxy = ROWS + OFFSETY - 1;
+
+    // get the initial x,y coordinates
+    *x = (rand() % (maxx));
+    *y = (rand() % (maxy));
+
+    // check if they are EMPTY and recalculate if not
+    while (*x < OFFSETX || *x > COLUMNS + 1 || matrix [*x][*y] != EMPTYCELL)
+        *x = (rand() % maxx);
+
+    while (*y < OFFSETY || *y > ROWS + 1 || matrix [*x][*y] != EMPTYCELL)
+        *y = (rand() % maxy);
+}
+
+void initialiseScreen()
+{
+    // FIXME: remove the cursor and clear the screen
+    //_setcursortype(_NOCURSOR);
+    clear_screen();
+
+    // main frame
+    for (i=2; i<80; i++)
+    {
+        gotoxy(i,1);
+        printf("-");
+        gotoxy(i,3);
+        printf("-");
+        gotoxy(i,24);
+        printf("-");
+        gotoxy(i,25);
+        printf("-");
+    }
+
+    for (i=2; i<25; i++)
+    {
+        gotoxy(1,i);
+        printf("|");
+        gotoxy(62,i);
+        printf("|");
+        gotoxy(80,i);
+        printf("|");
+    }
+
+    gotoxy(1,1);
+    printf("ï¿½");
+    gotoxy(80,1);
+    printf("ï¿½");
+    gotoxy(1,24);
+    printf("ï¿½");
+    gotoxy(1,25);
+    printf("ï¿½");
+    gotoxy(78,25);
+    printf("ï¿½");
+    gotoxy(78,24);
+    printf("ï¿½");
+
+    gotoxy(62,1);
+    printf("ï¿½");
+    gotoxy(62,3);
+    printf("ï¿½");
+    gotoxy(62,24);
+    printf("ï¿½");
+
+    gotoxy(1,3);
+    printf("ï¿½");
+    gotoxy(1,24);
+    printf("ï¿½");
+
+    gotoxy(80,3);
+    printf("ï¿½");
+    gotoxy(80,24);
+    printf("ï¿½");
+
+    gotoxy(62,25);
+    printf("ï¿½");
+
+    gotoxy(64,16);
+    printf(" ï¿½ï¿½    ï¿½ï¿½ï¿½   ï¿½");
+    gotoxy(64,17);
+    printf("ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½");
+    gotoxy(64,18);
+    printf("ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½");
+    gotoxy(64,19);
+    printf("ï¿½ï¿½ï¿½     ï¿½ï¿½ï¿½  ï¿½ï¿½");
+    gotoxy(64,20);
+    printf("ï¿½ï¿½ï¿½     ï¿½ï¿½ï¿½  ï¿½ï¿½ï¿½");
+    gotoxy(64,22);
+    printf("   creations (R)");
+    gotoxy(79,25);
+    printf(" ");
+}
+
+void printStats()
+{
+    gotoxy(3,2);
+    printf("The Chase v%2.1f                           Manos Korakakis", VERSION);
+    gotoxy(64,2);
+    printf(" Information :");
+    gotoxy(65,5);
+    printf("Score  :   %d", score);
+    gotoxy(65,8);
+    printf("Level  :   %d", level);
+    gotoxy(65,10);
+    printf("Robots :   %d", robots);
+    gotoxy(65,12);
+    printf("Bombs  :   %d", bombs);
 }
 
 void gameOver(void)
 {
-	gotoxy(8,10);
-	printf("ÛÛÛÛ   ÛÛ    Û   Û ÛÛÛ       ÛÛ  Û   Û ÛÛÛ  ÛÛÛ");
-	gotoxy(8,11);
-	printf("ÛÛ     Û Û   ÛÛ ÛÛ Û        Û  Û  Û  Û Û    Û  Û");
-	gotoxy(8,12);
-	printf("ÛÛ   Û ÛÛÛÛ  Û Û Û ÛÛ       Û  Û  Û Û  ÛÛ   ÛÛÛ");
-	gotoxy(8,13);
-	printf("ÛÛÛÛÛÛ Û  Û  Û   Û ÛÛÛÛ      ÛÛ    Û   ÛÛÛÛ Û  Û");
+    gotoxy(8,10);
+    printf("ï¿½ï¿½ï¿½ï¿½   ï¿½ï¿½    ï¿½   ï¿½ ï¿½ï¿½ï¿½       ï¿½ï¿½  ï¿½   ï¿½ ï¿½ï¿½ï¿½  ï¿½ï¿½ï¿½");
+    gotoxy(8,11);
+    printf("ï¿½ï¿½     ï¿½ ï¿½   ï¿½ï¿½ ï¿½ï¿½ ï¿½        ï¿½  ï¿½  ï¿½  ï¿½ ï¿½    ï¿½  ï¿½");
+    gotoxy(8,12);
+    printf("ï¿½ï¿½   ï¿½ ï¿½ï¿½ï¿½ï¿½  ï¿½ ï¿½ ï¿½ ï¿½ï¿½       ï¿½  ï¿½  ï¿½ ï¿½  ï¿½ï¿½   ï¿½ï¿½ï¿½");
+    gotoxy(8,13);
+    printf("ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ ï¿½  ï¿½  ï¿½   ï¿½ ï¿½ï¿½ï¿½ï¿½      ï¿½ï¿½    ï¿½   ï¿½ï¿½ï¿½ï¿½ ï¿½  ï¿½");
 
-	for (i=0; i<1; i++)
-	{
-		sound(100);
-		delay(100);
-		sound(200);
-		delay(100);
+    for (i=0; i<1; i++)
+    {
+        //sound(100);
+        //delay(100);
+        //sound(200);
+        //delay(100);
 
-		sound(500);
-		sound(40);
-		delay(100);
-		nosound();
-	}
+        //sound(500);
+        //sound(40);
+        //delay(100);
+        //nosound();
+    }
 
-	getch();
-	exit(1 - '0');
+    getch();
+    exit(1 - '0');
 }
 
 void initializeMatrices(
-	int offsetX,
-	int offsetY,
-	int matrix[COLUMNS][ROWS],
-	int help[COLUMNS][ROWS])
+    int offsetX,
+    int offsetY,
+    int matrix[COLUMNS][ROWS],
+    int help[COLUMNS][ROWS])
 {
-	for (a=offsetX; a<COLUMNS+offsetX; a++)
-		for (b=offsetY; b<ROWS+offsetY; b++)
-		{
-			matrix[a][b] = EMPTYCELL;
-			help[a][b] = EMPTYCELL;
-		}
+    for (a=offsetX; a<COLUMNS+offsetX; a++)
+        for (b=offsetY; b<ROWS+offsetY; b++)
+        {
+            matrix[a][b] = EMPTYCELL;
+            help[a][b] = EMPTYCELL;
+        }
 }
 
 void placeMan(
-	int matrix[COLUMNS][ROWS],
-	int help[COLUMNS][ROWS],
-	int x,
-	int y)
+    int matrix[COLUMNS][ROWS],
+    int help[COLUMNS][ROWS],
+    int x,
+    int y)
 {
-	placeItem(matrix, help, x, y, MANCELL, "M");
+    placeItem(matrix, help, x, y, MANCELL, "M");
 }
 
 void placeRobot(
-	int matrix[COLUMNS][ROWS],
-	int help[COLUMNS][ROWS],
-	int x,
-	int y)
+    int matrix[COLUMNS][ROWS],
+    int help[COLUMNS][ROWS],
+    int x,
+    int y)
 {
-	placeItem(matrix, help, x, y, ROBOTCELL, "R");
+    placeItem(matrix, help, x, y, ROBOTCELL, "R");
 }
 
 void placeEmpty(
-	int matrix[COLUMNS][ROWS],
-	int help[COLUMNS][ROWS],
-	int x,
-	int y)
+    int matrix[COLUMNS][ROWS],
+    int help[COLUMNS][ROWS],
+    int x,
+    int y)
 {
-	placeItem(matrix, help, x, y, EMPTYCELL, " ");
+    placeItem(matrix, help, x, y, EMPTYCELL, " ");
 }
 
 void placeDebris(
-	int matrix[COLUMNS][ROWS],
-	int help[COLUMNS][ROWS],
-	int x,
-	int y)
+    int matrix[COLUMNS][ROWS],
+    int help[COLUMNS][ROWS],
+    int x,
+    int y)
 {
-	placeItem(matrix, help, x, y, DEBRISCELL, "#");
+    placeItem(matrix, help, x, y, DEBRISCELL, "#");
 }
 
 void placeItem(
-	int matrix[COLUMNS][ROWS],
-	int help[COLUMNS][ROWS],
-	int x,
-	int y,
-	int type,
-	char* typestr)
+    int matrix[COLUMNS][ROWS],
+    int help[COLUMNS][ROWS],
+    int x,
+    int y,
+    int type,
+    char* typestr)
 {
-		matrix[x][y] = type;
-		help[x][y] = type;
-		gotoxy(x, y);
-		printf(typestr);
+        matrix[x][y] = type;
+        help[x][y] = type;
+        gotoxy(x, y);
+        printf(typestr);
 }
 
 void reduceRobots()
 {
-	// reduce robots by one
-	robots--;
-	gotoxy(76,10);
-	printf("%d", robots);
-
-	// increase score by one
-	score++;
-	gotoxy(76,5);
-	printf("%d",score);
+    // reduce robots by one
+    robots--;
+    
+    // increase score by one
+    score++;
 }
 
 void placeBomb(int *x, int *y)
 {
-	int k, c, d;
+    int k, c, d;
 
-	if (bombs > -1)
-	{
-		for (k=1; k<10; k++)
-		{
-			for (c=1; c<30; c++)
-			{
-				if (*x>2)
-				{
-					if (*y>4)
-					{
-						gotoxy(*x-1, *y-1);
-						printf("*");
-					}
+    if (bombs > -1)
+    {
+        for (k=1; k<10; k++)
+        {
+            for (c=1; c<30; c++)
+            {
+                if (*x>2)
+                {
+                    if (*y>4)
+                    {
+                        gotoxy(*x-1, *y-1);
+                        printf("*");
+                    }
 
-					gotoxy(*x-1, *y); printf("*");
+                    gotoxy(*x-1, *y); printf("*");
 
-					if (*y<23)
-					{
-						gotoxy(*x-1, *y+1);
-						printf("*");
-					}
-				}
+                    if (*y<23)
+                    {
+                        gotoxy(*x-1, *y+1);
+                        printf("*");
+                    }
+                }
 
-				if (*y>4)
-				{
-					gotoxy(*x, *y-1);
-					printf("*");
-				}
+                if (*y>4)
+                {
+                    gotoxy(*x, *y-1);
+                    printf("*");
+                }
 
-				if (*y<23)
-				{
-					gotoxy(*x, *y+1);
-					printf("*");
-				}
+                if (*y<23)
+                {
+                    gotoxy(*x, *y+1);
+                    printf("*");
+                }
 
-				if (*x<61)
-				{
-					if (*y>4)
-					{
-						gotoxy(*x+1, *y-1);
-						printf("*");
-					}
+                if (*x<61)
+                {
+                    if (*y>4)
+                    {
+                        gotoxy(*x+1, *y-1);
+                        printf("*");
+                    }
 
-					gotoxy(*x+1, *y); printf("*");
+                    gotoxy(*x+1, *y); printf("*");
 
-					if (*y<23)
-					{
-						gotoxy(*x+1, *y+1);
-						printf("*");
-					}
-				}
-			}
+                    if (*y<23)
+                    {
+                        gotoxy(*x+1, *y+1);
+                        printf("*");
+                    }
+                }
+            }
 
-			for (d=1; d<30; d++)
-			{
-				if (*x>2)
-				{
-					if (*y>4)
-					{
-						gotoxy(*x-1, *y-1);
-						printf(" ");
-					}
+            for (d=1; d<30; d++)
+            {
+                if (*x>2)
+                {
+                    if (*y>4)
+                    {
+                        gotoxy(*x-1, *y-1);
+                        printf(" ");
+                    }
 
-					gotoxy(*x-1, *y); printf(" ");
+                    gotoxy(*x-1, *y); printf(" ");
 
-					if (*y<23)
-					{
-						gotoxy(*x-1, *y+1);
-						printf(" ");
-					}
-				}
+                    if (*y<23)
+                    {
+                        gotoxy(*x-1, *y+1);
+                        printf(" ");
+                    }
+                }
 
-				if (*y>4)
-				{
-					gotoxy(*x, *y-1);
-					printf(" ");
-				}
+                if (*y>4)
+                {
+                    gotoxy(*x, *y-1);
+                    printf(" ");
+                }
 
-				if (*y<23)
-				{
-					gotoxy(*x, *y+1);
-					printf(" ");
-				}
+                if (*y<23)
+                {
+                    gotoxy(*x, *y+1);
+                    printf(" ");
+                }
 
-				if (*x<61)
-				{
-					if (*y>4)
-					{
-						gotoxy(*x+1, *y-1);
-						printf(" ");
-					}
+                if (*x<61)
+                {
+                    if (*y>4)
+                    {
+                        gotoxy(*x+1, *y-1);
+                        printf(" ");
+                    }
 
-					gotoxy(*x+1, *y); printf(" ");
+                    gotoxy(*x+1, *y); printf(" ");
 
-					if (*y<23)
-					{
-						gotoxy(*x+1, *y+1);
-						printf(" ");
-					}
-				}
-			}
-		}
+                    if (*y<23)
+                    {
+                        gotoxy(*x+1, *y+1);
+                        printf(" ");
+                    }
+                }
+            }
+        }
 
-		sound(100);
-		delay(100);
-		sound(200);
-		delay(100);
-		sound(500);
-		sound(40);
-		delay(100);
-		nosound();
-	}
-	else
-	{
-		sound(200);
-		delay(300);
-		nosound();
-	}
+        //sound(100);
+        //delay(100);
+        //sound(200);
+        //delay(100);
+        //sound(500);
+        //sound(40);
+        //delay(100);
+        //nosound();
+    }
+    else
+    {
+        //sound(200);
+        //delay(300);
+        //nosound();
+    }
 }
