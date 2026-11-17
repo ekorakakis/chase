@@ -3,17 +3,15 @@
 /*********************************************
  * Known Bugs
  *********************************************
- 1. After changing bounds and using offsets there exists an area in the bottom of
-		the screen that the robots cannot be in.
- 2. Level change. (Probably due to 1).
- 3. M cannot lose (again because of 1).
- 4. Level change sound.
- 5. Quit (case insensitivity).
- 6. Bomb graphic effects.
- 7. General refactoring
- 8. Free move for robots (with +).
- 9. Max number of robots
-10. Teleport is not working always right (randomization)
+ 1. Level change sound.
+ 2. Bomb graphic effects.
+ 3. General refactoring
+ 4. Free move for robots (with +).
+ 5. Max number of robots
+ 6. Robots are moved one at a time in scan order, so a robot can collide with
+		another that was about to move away (robots chasing you to the right or
+		down destroy each other, to the left or up they don't). Robots should
+		move simultaneously.
 */
 
 /*********************************************
@@ -36,6 +34,9 @@
 #define OFFSETX 2
 #define OFFSETY 4
 
+#define MATRIXW (COLUMNS+OFFSETX)
+#define MATRIXH (ROWS+OFFSETY)
+
 #define MAXLEVELS 20
 
 /* cell definitions */
@@ -53,17 +54,18 @@
  *********************************************/
 
 void initializeEnvironment(void);
-void initializeMatrices(int offsetX, int offsetY, int matrix[COLUMNS][ROWS], int help[COLUMNS][ROWS]);
+void initializeMatrices(int offsetX, int offsetY, int matrix[MATRIXW][MATRIXH], int help[MATRIXW][MATRIXH]);
 void randomizeCoordinates(int *x, int *y);
+void clearField(void);
 
 int calc(void);
 int check(void);
 
-void placeMan(int matrix[COLUMNS][ROWS], int help[COLUMNS][ROWS], int x, int y);
-void placeRobot(int matrix[COLUMNS][ROWS], int help[COLUMNS][ROWS], int x, int y);
-void placeEmpty(int matrix[COLUMNS][ROWS], int help[COLUMNS][ROWS], int x, int y);
-void placeDebris(int matrix[COLUMNS][ROWS], int help[COLUMNS][ROWS], int x, int y);
-void placeItem(int matrix[COLUMNS][ROWS], int help[COLUMNS][ROWS], int x, int y, int type, char* typestr);
+void placeMan(int matrix[MATRIXW][MATRIXH], int help[MATRIXW][MATRIXH], int x, int y);
+void placeRobot(int matrix[MATRIXW][MATRIXH], int help[MATRIXW][MATRIXH], int x, int y);
+void placeEmpty(int matrix[MATRIXW][MATRIXH], int help[MATRIXW][MATRIXH], int x, int y);
+void placeDebris(int matrix[MATRIXW][MATRIXH], int help[MATRIXW][MATRIXH], int x, int y);
+void placeItem(int matrix[MATRIXW][MATRIXH], int help[MATRIXW][MATRIXH], int x, int y, int type, char* typestr);
 void placeBomb(int *x, int *y);
 void reduceRobots(void);
 
@@ -79,7 +81,7 @@ char keyb;
 time_t t;
 
 int c, k, i, j, level, robots, score, a, b, bombs, level2;
-int matrix[COLUMNS][ROWS], help[COLUMNS][ROWS];
+int matrix[MATRIXW][MATRIXH], help[MATRIXW][MATRIXH];
 
 /*********************************************
  * Function Main
@@ -96,19 +98,17 @@ int main(void)
 	for (level=1; level<MAXLEVELS;)
 	{
 		gotoxy(76,8);
-		printf("%d", level, " ");
+		printf("%d ", level);
 
 		if (keyboard()==1000)
 		{
 			level++;
-			matrix [a][b] = 0;
-			gotoxy(a,b);
-			printf(" ");
+			clearField();
 		}
 		else
 			break;
 	 }
-	 return;
+	 return 0;
 }
 
 
@@ -121,9 +121,9 @@ int keyboard()
 	robots = level * 5;
 	bombs += 5;
 	gotoxy(76,10);
-	printf("%d", robots, " ");
+	printf("%d ", robots);
 	gotoxy(76,12);
-	printf("%d", bombs, " ");
+	printf("%d ", bombs);
 
 	keyb = 'w';
 
@@ -142,109 +142,41 @@ int keyboard()
 	placeMan(matrix, help, a, b);
 
 	// read user's input
-	while ((keyb != 'q') || (keyb != 'Q'))
+	while (1)
 	{
 		keyb = getch();
 
 		switch(keyb)
 		{
-			case '1': if ( b < 23 && a > 2 )
-			{
-				placeEmpty(matrix, help, a, b);
-				b++; a--;
-				placeMan(matrix, help, a, b);
+			case '1': case '2': case '3':
+		case '4': case '5': case '6':
+		case '7': case '8': case '9':
+		{
+			int idx = keyb - '1';
+			int nx = a + (idx % 3) - 1;
+			int ny = b + 1 - (idx / 3);
 
-				if (check()==1000) return 1000;
+			// stay inside the playing field
+			if (nx < OFFSETX || nx >= OFFSETX+COLUMNS ||
+				ny < OFFSETY || ny >= OFFSETY+ROWS)
 				break;
-			}
-			else break;
 
-			case '2': if (b < 23)
+			// walking into a robot or debris is fatal
+			if (matrix[nx][ny] == ROBOTCELL || matrix[nx][ny] == DEBRISCELL)
 			{
-				placeEmpty(matrix, help, a, b);
-				b++;
-				placeMan(matrix, help, a, b);
-
-				if (check()==1000) return 1000;
-				break;
-			}
-			else break;
-
-			case '3': if ( b < 23 && a < 61 )
-			{
-				placeEmpty(matrix, help, a, b);
-				b++; a++;
-				placeMan(matrix, help, a, b);
-
-				if (check()==1000) return 1000;
-				break;
-			}
-			else break;
-
-			case '4': if (a > 2)
-			{
-				placeEmpty(matrix, help, a, b);
-				a--;
-				placeMan(matrix, help, a, b);
-
-				if (check()==1000) return 1000;
-				break;
-			}
-			else break;
-
-			case '5':
-			{
-				placeMan(matrix, help, a, b);
-
-				if (check()==1000) return 1000;
-				break;
+				placeRobot(matrix, help, nx, ny);
+				gameOver();
 			}
 
-			case '6': if (a<61)
-			{
-				placeEmpty(matrix, help, a, b);
-				a++;
-				placeMan(matrix, help, a, b);
+			placeEmpty(matrix, help, a, b);
+			a = nx; b = ny;
+			placeMan(matrix, help, a, b);
 
-				if (check()==1000) return 1000;
-				break;
-			}
-			else break;
+			if (check()==1000) return 1000;
+			break;
+		}
 
-			case '7': if (b > 4 && a > 2)
-			{
-				placeEmpty(matrix, help, a, b);
-				a--; b--;
-				placeMan(matrix, help, a, b);
-
-				if (check()==1000) return 1000;
-				break;
-			}
-			else break;
-
-			case '8': if (b > 4)
-			{
-				placeEmpty(matrix, help, a, b);
-				b--;
-				placeMan(matrix, help, a, b);
-
-				if (check()==1000) return 1000;
-				break;
-			}
-			else break;
-
-			case '9': if (b > 4 && a < 61)
-			{
-				placeEmpty(matrix, help, a, b);
-				a++; b--;
-				placeMan(matrix, help, a, b);
-
-				if (check()==1000) return 1000;
-				break;
-			}
-			else break;
-
-			case '+':
+		case '+':
 			{
 				while (check() != 1000)
 				{
@@ -278,76 +210,65 @@ int keyboard()
 			break;
 
 			case 'b':
+		{
+			int dx, dy, x, y;
+
+			// no bombs left
+			if (bombs <= 0)
 			{
-				bombs--;
-
-				gotoxy(76,12);
-				printf("%d",bombs);
-
-				if (matrix[a-1][b-1] == ROBOTCELL)
-				{
-					reduceRobots();
-					placeEmpty(matrix, help, a-1, b-1);
-					if (robots==0) return 1000;
-				}
-
-				if (matrix[a-1][b] == ROBOTCELL)
-				{
-					reduceRobots();
-					placeEmpty(matrix, help, a-1, b);
-					if (robots==0) return 1000;
-				}
-
-				if (matrix[a-1][b+1] == ROBOTCELL)
-				{
-					reduceRobots();
-					placeEmpty(matrix, help, a-1, b+1);
-					if (robots==0) return 1000;
-				}
-
-				if (matrix[a][b-1] == ROBOTCELL)
-				{
-					reduceRobots();
-					placeEmpty(matrix, help, a, b-1);
-					if (robots==0) return 1000;
-				}
-
-				if (matrix[a][b+1] == ROBOTCELL)
-				{
-					reduceRobots();
-					placeEmpty(matrix, help, a, b+1);
-					if (robots==0) return 1000;
-				}
-
-				if (matrix[a+1][b-1] == ROBOTCELL)
-				{
-					reduceRobots();
-					placeEmpty(matrix, help, a+1, b-1);
-					if (robots==0) return 1000;
-				}
-
-				if (matrix[a+1][b] == ROBOTCELL)
-				{
-					reduceRobots();
-					placeEmpty(matrix, help, a+1, b);
-					if (robots==0) return 1000;
-				}
-
-				if (matrix[a+1][b+1] == ROBOTCELL)
-				{
-					reduceRobots();
-					placeEmpty(matrix, help, a+1, b+1);
-					if (robots==0) return 1000;
-				}
-
-				placeBomb(&a, &b);
+				sound(200);
+				delay(300);
+				nosound();
 				break;
 			}
 
+			bombs--;
+			gotoxy(76,12);
+			printf("%d ", bombs);
+
+			for (dx=-1; dx<=1; dx++)
+				for (dy=-1; dy<=1; dy++)
+				{
+					x = a + dx;
+					y = b + dy;
+
+					if (x < OFFSETX || x >= OFFSETX+COLUMNS ||
+						y < OFFSETY || y >= OFFSETY+ROWS)
+						continue;
+
+					if (matrix[x][y] == ROBOTCELL)
+					{
+						reduceRobots();
+						placeEmpty(matrix, help, x, y);
+					}
+				}
+
+			if (robots==0) return 1000;
+
+			placeBomb(&a, &b);
+
+			// the animation wipes the surrounding cells: redraw them
+			for (dx=-1; dx<=1; dx++)
+				for (dy=-1; dy<=1; dy++)
+				{
+					x = a + dx;
+					y = b + dy;
+
+					if (x < OFFSETX || x >= OFFSETX+COLUMNS ||
+						y < OFFSETY || y >= OFFSETY+ROWS)
+						continue;
+
+					gotoxy(x, y);
+					if (matrix[x][y] == ROBOTCELL)       printf("R");
+					else if (matrix[x][y] == DEBRISCELL) printf("#");
+					else if (matrix[x][y] == MANCELL)    printf("M");
+					else                                 printf(" ");
+				}
+			break;
+		}
+
 		} // end switch
 	} // end while
-
-	return 0;
 
 } // end function
 
@@ -507,14 +428,25 @@ int check()
 
 void randomizeCoordinates(int *x, int *y)
 {
-	*x = (rand() % 62);
-	*y = (rand() % 23);
+	do
+	{
+		*x = OFFSETX + (rand() % COLUMNS);
+		*y = OFFSETY + (rand() % ROWS);
+	} while (matrix[*x][*y] != EMPTYCELL);
+}
 
-	while (*x < 2 || *x > 61 || matrix [*x][*y] != EMPTYCELL)
-		*x = (rand() % 62);
+void clearField(void)
+{
+	int x, y;
 
-	while (*y < 4 || *y > 23 || matrix [*x][*y] != EMPTYCELL)
-		*y = (rand() % 23);
+	for (x=OFFSETX; x<COLUMNS+OFFSETX; x++)
+		for (y=OFFSETY; y<ROWS+OFFSETY; y++)
+		{
+			gotoxy(x, y);
+			printf(" ");
+		}
+
+	initializeMatrices(OFFSETX, OFFSETY, matrix, help);
 }
 
 void initializeEnvironment()
@@ -629,14 +561,14 @@ void gameOver(void)
 	}
 
 	getch();
-	exit(1 - '0');
+	exit(1);
 }
 
 void initializeMatrices(
 	int offsetX,
 	int offsetY,
-	int matrix[COLUMNS][ROWS],
-	int help[COLUMNS][ROWS])
+	int matrix[MATRIXW][MATRIXH],
+	int help[MATRIXW][MATRIXH])
 {
 	for (a=offsetX; a<COLUMNS+offsetX; a++)
 		for (b=offsetY; b<ROWS+offsetY; b++)
@@ -647,8 +579,8 @@ void initializeMatrices(
 }
 
 void placeMan(
-	int matrix[COLUMNS][ROWS],
-	int help[COLUMNS][ROWS],
+	int matrix[MATRIXW][MATRIXH],
+	int help[MATRIXW][MATRIXH],
 	int x,
 	int y)
 {
@@ -656,8 +588,8 @@ void placeMan(
 }
 
 void placeRobot(
-	int matrix[COLUMNS][ROWS],
-	int help[COLUMNS][ROWS],
+	int matrix[MATRIXW][MATRIXH],
+	int help[MATRIXW][MATRIXH],
 	int x,
 	int y)
 {
@@ -665,8 +597,8 @@ void placeRobot(
 }
 
 void placeEmpty(
-	int matrix[COLUMNS][ROWS],
-	int help[COLUMNS][ROWS],
+	int matrix[MATRIXW][MATRIXH],
+	int help[MATRIXW][MATRIXH],
 	int x,
 	int y)
 {
@@ -674,8 +606,8 @@ void placeEmpty(
 }
 
 void placeDebris(
-	int matrix[COLUMNS][ROWS],
-	int help[COLUMNS][ROWS],
+	int matrix[MATRIXW][MATRIXH],
+	int help[MATRIXW][MATRIXH],
 	int x,
 	int y)
 {
@@ -683,8 +615,8 @@ void placeDebris(
 }
 
 void placeItem(
-	int matrix[COLUMNS][ROWS],
-	int help[COLUMNS][ROWS],
+	int matrix[MATRIXW][MATRIXH],
+	int help[MATRIXW][MATRIXH],
 	int x,
 	int y,
 	int type,
@@ -693,7 +625,7 @@ void placeItem(
 		matrix[x][y] = type;
 		help[x][y] = type;
 		gotoxy(x, y);
-		printf(typestr);
+		printf("%s", typestr);
 }
 
 void reduceRobots()
@@ -701,7 +633,7 @@ void reduceRobots()
 	// reduce robots by one
 	robots--;
 	gotoxy(76,10);
-	printf("%d", robots);
+	printf("%d ", robots);
 
 	// increase score by one
 	score++;
